@@ -2,6 +2,8 @@
 
 An exploratory machine learning project that combines Indian crop records with state-level soil and annual weather data to predict crop yield. The notebook covers data inspection, outlier handling, feature engineering, exploratory analysis, and a comparison of Linear Regression, Random Forest, XGBoost, and a stacked LSTM network.
 
+[The Kaggle Dataset Repository Link](https://www.kaggle.com/datasets/anshumish/crop-yield-data-with-soil-and-weather-dataset/data)
+
 The analysis starts with **19,689 crop records from 1997–2020** and produces **19,510 modeling records covering 54 crops, 30 states/territories, and six seasons** after filtering.
 
 **Main finding:** nonlinear models improve substantially on the linear baseline. The tuned XGBoost model records the lowest RMSE among the models evaluated on the same random test split (**3.825; R² = 0.893**). The LSTM records **RMSE = 3.034 and R² = 0.937** on a separate chronological test set. These results use different evaluation designs and should not be treated as a controlled ranking across all models.
@@ -13,10 +15,10 @@ All performance values below come from the notebook's saved outputs; they have n
 | File | Purpose |
 | --- | --- |
 | [Crop_yield_with_soil_and_weather.ipynb](Crop_yield_with_soil_and_weather.ipynb) | Complete analysis, model experiments, saved results, and plots |
-| [crop_yield.csv](crop_yield.csv) | Original crop records |
-| [state_soil_data.csv](state_soil_data.csv) | State-level nitrogen, phosphorus, potassium, and pH values |
-| [state_weather_data_1997_2020.csv](state_weather_data_1997_2020.csv) | Annual temperature, rainfall, and humidity by state |
-| [merged_df.csv](merged_df.csv) | Included merged dataset with 19,510 rows and 14 data columns, plus an exported index |
+| [data/crop_yield.csv](data/crop_yield.csv) | Original crop records |
+| [data/state_soil_data.csv](data/state_soil_data.csv) | State-level nitrogen, phosphorus, potassium, and pH values |
+| [data/state_weather_data_1997_2020.csv](data/state_weather_data_1997_2020.csv) | Annual temperature, rainfall, and humidity by state |
+| [data/merged_df.csv](data/merged_df.csv) | Included merged dataset with 19,510 rows and 14 data columns, plus an exported index |
 | [assets/](assets/) | Figures extracted directly from the notebook's saved outputs |
 
 ## Project objective
@@ -49,9 +51,9 @@ The notebook checks table shapes, column types, missing values, duplicate rows, 
 Two rounds of yield filtering are applied:
 
 1. **Investigate the original distribution.** The interquartile-range method flags 3,065 records, while the absolute z-score threshold of 3 flags 164 records, all belonging to coconut. The code removes **all 172 coconut records**, leaving 19,517 rows. It does not remove all IQR-flagged records.
-2. **Remove remaining extreme values.** After merging and further exploration, the code removes **seven records with yield greater than 200**, leaving 19,510 rows.
+2. **Remove remaining extreme values.** After merging and further exploration, removes **seven records with yield greater than 200**, leaving 19,510 rows.
 
-These are modeling choices that change the scope of the study. Coconut's different numerical scale motivates its exclusion in the notebook, but the analysis does not establish the physical or measurement reason for that difference. Results apply to the retained records and exclude coconut.
+The dataset contained 172 coconut records, representing approximately 0.87% of the original observations. Coconut had a substantially different yield scale, with an average of approximately 8,652 compared with 4.41 for the remaining crops. These values could disproportionately influence squared-error model training and pooled evaluation metrics. Coconut records were therefore excluded to focus the analysis on the remaining crops.
 
 ### 2. Merge and engineer features
 
@@ -64,7 +66,7 @@ fertilizer_rate = fertilizer / area
 pesticide_rate  = pesticide / area
 ```
 
-The code then removes `area`, `production`, the original fertilizer and pesticide totals, and the temporary `yield_zscore` column. Dropping production and the target-derived z-score avoids using direct target-related information as predictors; the rates express input usage relative to cultivated area.
+Then removes `area`, `production`, the original fertilizer and pesticide totals, and the temporary `yield_zscore` column. Dropping production and the target-derived z-score avoids using direct target-related information as predictors; the rates express input usage relative to cultivated area.
 
 The final tabular models use **12 input columns**:
 
@@ -78,8 +80,6 @@ The final tabular models use **12 input columns**:
 `year` is retained for analysis and chronological sequence splitting, but is excluded from the model input columns. The LSTM also excludes historical yield from its inputs.
 
 ### 3. Explore yield patterns
-
-The notebook uses histograms, box plots, a correlation heatmap, weather-versus-yield scatter plots, and mean yields grouped by year, crop, and state.
 
 - **Yield remains strongly skewed after removing coconut.** The pre-second-filter summary shows a median near 1.02 and a maximum of 989.87, motivating inspection of the remaining extremes.
 - **Crop averages differ substantially.** After both filters, mean yield is approximately 51.73 for sugarcane, 26.85 for banana, 16.67 for tapioca, and 0.17 for cardamom, in the recorded units. This illustrates why crop identity matters when interpreting pooled results.
@@ -189,33 +189,10 @@ The notebook was developed with Google Colab-style file paths. Its dependencies 
    python -m jupyterlab
    ```
 
-4. Open `Crop_yield_with_soil_and_weather.ipynb` and replace its three Google Drive paths with paths to the included files:
+4. Open `Crop_yield_with_soil_and_weather.ipynb` and replace with paths to the included files:
 
    ```python
-   CROP_FILE = "crop_yield.csv"
-   SOIL_FILE = "state_soil_data.csv"
-   WEATHER_FILE = "state_weather_data_1997_2020.csv"
+   CROP_FILE = "./data/crop_yield.csv"
+   SOIL_FILE = "./data/state_soil_data.csv"
+   WEATHER_FILE = "./data/state_weather_data_1997_2020.csv"
    ```
-
-5. Restart the kernel and run the cells in order to regenerate the analysis and results. The model searches perform many fits and may take time.
-
-For Colab, upload the three input CSVs or mount Google Drive and adjust the paths accordingly. The notebook starts from the original inputs; it does not load `merged_df.csv` or include a cell that exports it. If loading that file separately with pandas, use `index_col=0` to omit its saved index from the data columns.
-
-## Interpretation and reproducibility limits
-
-- **Saved outputs contain evidence of different execution states.** For example, an early column inspection already displays later engineered columns, some category displays retain original capitalization after the cleaning cell, and one `y_seq` display contains a single value despite the surrounding full-sequence output. The reported numbers are saved experiment results, pending a clean rerun.
-- **Evaluation designs differ.** The tabular models randomly split records across years, allowing related observations from the same series into training and testing. The LSTM splits by target year and excludes series without enough observations. Evaluate every model on the same chronological targets before drawing conclusions about forecasting performance.
-- **Target-year information is used.** Annual weather and input rates for the target year are model inputs. A practical advance forecast would need these inputs to be available or forecast separately.
-- **Filtering is informed by the complete target dataset.** Coconut removal and the yield-above-200 rule are applied before splitting. Report this selection explicitly and assess its effect on the intended prediction population.
-- **Spatial detail is limited.** Soil is constant within each state, and weather is annual and state-level. The data cannot resolve farm-specific soil conditions or within-year weather variation.
-- **Added predictive value is not isolated.** The notebook does not compare otherwise identical models with and without soil, weather, or input-rate features. It therefore does not quantify each feature group's contribution or establish causal effects.
-- **The test set is reused across experiments.** A separate final holdout would strengthen an unbiased assessment after model selection. Package versions, hardware, numeric feature ordering built from a Python set, and neural-network training can also affect reproducibility.
-
-## Next steps
-
-- Regenerate all outputs from a clean kernel and record the Python and package versions.
-- Compare all models on a shared chronological holdout and add a simple historical-yield baseline.
-- Decide whether sequence windows must contain consecutive years, then enforce that rule consistently.
-- Give XGBoost an explicit larger tree budget when using early stopping and reassess the final refit.
-- Report error by crop, state, and yield range; test feature-group ablations and permutation importance.
-- Document dataset provenance, measurement units, and redistribution licenses, and assess crop-specific alternatives to global outlier removal.
